@@ -6,152 +6,145 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Main where
 
-import           PlutusTx
-import           PlutusTx.Prelude       hiding (Semigroup(..), unless)
-import           Ledger
-import           Ledger.Typed.Scripts   as Scripts
-import           Ledger.Ada             as Ada
-import           Playground.Contract
-import           Plutus.Contract
-import           Prelude                (IO, Show, String, putStrLn, (++))
-import qualified Prelude
-import           Data.Aeson             (ToJSON, FromJSON)
+-- Plutus / on-chain
+import qualified PlutusTx
+import           PlutusTx.Prelude        hiding (Semigroup(..), unless)
+import qualified PlutusTx
+import qualified PlutusTx.Builtins      as Builtins
+
+import qualified Plutus.V2.Ledger.Api   as V2
+import qualified Plutus.V2.Ledger.Contexts as Contexts
+
+-- serialization / cardano-api
+import qualified Data.ByteString.Short  as SBS
+import qualified Data.ByteString.Lazy   as LBS
+import qualified Codec.Serialise        as Serialise
+import           Cardano.Api.Shelley    (PlutusScript (..), PlutusScriptV2)
+import           Cardano.Api            (writeFileTextEnvelope, displayError)
+
+-- utils
 import           GHC.Generics           (Generic)
+import qualified Prelude                as P
+import           Prelude                (IO)
 
-------------------------------------------------------------
--- ON-CHAIN CODE
-------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Data types (datum / redeemer)
+--------------------------------------------------------------------------------
 
--- Loan parameters
+-- Loan parameters stored as the datum
 data LoanParams = LoanParams
-    { lender    :: PubKeyHash
-    , borrower  :: PubKeyHash
-    , principal :: Integer
-    , interest  :: Integer
-    , deadline  :: POSIXTime
-    } deriving (Show, Generic, FromJSON, ToJSON, Prelude.Eq)
+    { lpLender    :: V2.PubKeyHash
+    , lpBorrower  :: V2.PubKeyHash
+    , lpPrincipal :: Integer
+    , lpInterest  :: Integer
+    , lpDeadline  :: V2.POSIXTime
+    }
+    deriving (P.Show, Generic)
 
 PlutusTx.unstableMakeIsData ''LoanParams
 PlutusTx.makeLift ''LoanParams
 
--- Redeemer
+-- Redeemer: borrower repays, lender claims after deadline
 data LoanAction = Repay | Claim
-    deriving Prelude.Show
+    deriving (P.Show, Generic)
 
 PlutusTx.unstableMakeIsData ''LoanAction
 
--- Validator logic
+--------------------------------------------------------------------------------
+-- Validator logic (on-chain)
+--
+-- Note: simple checks for signer & time window. Add value checks if you want
+--------------------------------------------------------------------------------
 {-# INLINABLE mkLoanValidator #-}
-mkLoanValidator :: LoanParams -> LoanAction -> ScriptContext -> Bool
-mkLoanValidator p action ctx =
+mkLoanValidator :: LoanParams -> LoanAction -> V2.ScriptContext -> Bool
+mkLoanValidator datum action ctx =
     case action of
-        Repay -> traceIfFalse "Not signed by borrower" signedByBorrower &&
-                 traceIfFalse "Repayment too low" repaymentCorrect &&
-                 traceIfFalse "Too late" beforeDeadline
-        Claim -> traceIfFalse "Not signed by lender" signedByLender &&
-                 traceIfFalse "Too early to claim" afterDeadline
+        Repay ->
+            traceIfFalse "Repay: not signed by borrower" signedByBorrower &&
+            traceIfFalse "Repay: too late" beforeDeadline
+
+        Claim ->
+            traceIfFalse "Claim: not signed by lender" signedByLender &&
+            traceIfFalse "Claim: too early" afterDeadline
   where
-    info :: TxInfo
-    info = scriptContextTxInfo ctx
+    info :: V2.TxInfo
+    info = V2.scriptContextTxInfo ctx
 
-    signedByBorrower = txSignedBy info (borrower p)
-    signedByLender   = txSignedBy info (lender p)
-    beforeDeadline   = contains (to $ deadline p) $ txInfoValidRange info
-    afterDeadline    = contains (from $ deadline p) $ txInfoValidRange info
-    repaymentAmount  = principal p + interest p
-    repaymentCorrect = let paid = valuePaidTo info (lender p)
-                       in Ada.getLovelace (Ada.fromValue paid) >= repaymentAmount
+    signedByBorrower :: Bool
+    signedByBorrower = V2.txSignedBy info (lpBorrower datum)
 
-------------------------------------------------------------
--- TYPED SCRIPT WRAPPER
-------------------------------------------------------------
+    signedByLender :: Bool
+    signedByLender = V2.txSignedBy info (lpLender datum)
 
-data Loan
-instance Scripts.ValidatorTypes Loan where
-    type DatumType Loan = LoanParams
-    type RedeemerType Loan = LoanAction
+    beforeDeadline :: Bool
+    beforeDeadline = contains (to $ lpDeadline datum) $ V2.txInfoValidRange info
 
-typedLoanValidator :: Scripts.TypedValidator Loan
-typedLoanValidator = Scripts.mkTypedValidator @Loan
-    $$(PlutusTx.compile [|| mkLoanValidator ||])
-    $$(PlutusTx.compile [|| wrap ||])
-  where
-    wrap = Scripts.wrapValidator @LoanParams @LoanAction
+    afterDeadline :: Bool
+    afterDeadline = contains (from $ lpDeadline datum) $ V2.txInfoValidRange info
 
-validator :: Validator
-validator = Scripts.validatorScript typedLoanValidator
+--------------------------------------------------------------------------------
+-- Wrap validator for compilation
+--------------------------------------------------------------------------------
+{-# INLINABLE mkWrapped #-}
+mkWrapped :: BuiltinData -> BuiltinData -> BuiltinData -> ()
+mkWrapped d r c =
+    check $
+      mkLoanValidator
+        (PlutusTx.unsafeFromBuiltinData d)
+        (PlutusTx.unsafeFromBuiltinData r)
+        (PlutusTx.unsafeFromBuiltinData c)
 
-valHash :: Ledger.ValidatorHash
-valHash = Scripts.validatorHash typedLoanValidator
+-- compiled code (for Plutus V2)
+loanValidatorCode :: PlutusTx.CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
+loanValidatorCode = $$(PlutusTx.compile [|| mkWrapped ||])
 
-scrAddress :: Ledger.Address
-scrAddress = scriptAddress validator
+-- Script objects
+loanScript :: V2.Script
+loanScript = V2.fromCompiledCode loanValidatorCode
 
-------------------------------------------------------------
--- OFF-CHAIN CODE
-------------------------------------------------------------
+loanValidator :: V2.Validator
+loanValidator = V2.mkValidatorScript loanValidatorCode
 
--- Modern Plutus endpoints
-type LoanSchema =
-        Endpoint "StartLoan" LoanParams
-    -- Repay and Claim endpoints handled via selectList
+--------------------------------------------------------------------------------
+-- Serialization to Cardano Api PlutusScript for saving
+--------------------------------------------------------------------------------
+loanScriptSBS :: SBS.ShortByteString
+loanScriptSBS = SBS.toShort . LBS.toStrict $ Serialise.serialise loanScript
 
--- Borrower starts loan
-startLoan :: AsContractError e => LoanParams -> Contract w s e ()
-startLoan params = do
-    let tx = mustPayToTheScript params $ Ada.lovelaceValueOf (principal params)
-    ledgerTx <- submitTxConstraints typedLoanValidator tx
-    awaitTxConfirmed $ getCardanoTxId ledgerTx
-    logInfo @String "✅ Loan initialized."
+loanPlutusScript :: PlutusScript PlutusScriptV2
+loanPlutusScript = PlutusScriptSerialised loanScriptSBS
 
--- Borrower repays loan
-repayLoan :: AsContractError e => LoanParams -> Contract w s e ()
-repayLoan params = do
-    utxos <- utxosAt scrAddress
-    let repayment = Ada.lovelaceValueOf (principal params + interest params)
-        tx = collectFromScript utxos Repay <>
-             mustPayToPubKey (lender params) repayment
-    ledgerTx <- submitTxConstraintsSpending typedLoanValidator utxos tx
-    awaitTxConfirmed $ getCardanoTxId ledgerTx
-    logInfo @String "💰 Loan repaid."
+--------------------------------------------------------------------------------
+-- Utilities: validator hash & address (simple derivation)
+--------------------------------------------------------------------------------
+loanValidatorHash :: V2.ValidatorHash
+loanValidatorHash = V2.ValidatorHash loanScriptSBS
 
--- Lender claims funds if defaulted
-claimLoan :: AsContractError e => LoanParams -> Contract w s e ()
-claimLoan params = do
-    utxos <- utxosAt scrAddress
-    let tx = collectFromScript utxos Claim
-    ledgerTx <- submitTxConstraintsSpending typedLoanValidator utxos tx
-    awaitTxConfirmed $ getCardanoTxId ledgerTx
-    logInfo @String "⚠️ Loan claimed by lender."
+loanAddress :: V2.Address
+loanAddress = V2.Address (V2.ScriptCredential loanValidatorHash) Nothing
 
--- Endpoint dispatcher
-endpoints :: Contract () LoanSchema Text ()
-endpoints = do
-    logInfo @String "🏦 Loan contract ready..."
-    selectList [ endpoint @"StartLoan" startLoan
-               , endpoint @"RepayLoan" repayLoan
-               , endpoint @"ClaimLoan" claimLoan
-               ] >> endpoints
-
-mkSchemaDefinitions ''LoanSchema
-mkKnownCurrencies []
-
-------------------------------------------------------------
--- MAIN ENTRY POINT
-------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Write .plutus file and main
+--------------------------------------------------------------------------------
+saveToFile :: FilePath -> IO ()
+saveToFile path = do
+    let desc = "Loan contract (compiled PlutusV2 script)"
+    r <- writeFileTextEnvelope path (Just desc) loanPlutusScript
+    case r of
+      Left err -> P.putStrLn $ "Error writing script: " P.++ P.show (displayError err)
+      Right () -> P.putStrLn $ "Wrote script to " P.++ path
 
 main :: IO ()
 main = do
-    putStrLn "==============================================="
-    putStrLn "     💸 Loan / Borrow Smart Contract (Plutus)  "
-    putStrLn "==============================================="
-    putStrLn "This contract allows a lender to issue loans"
-    putStrLn "and a borrower to repay with interest or default."
-    putStrLn $ "Validator Hash: " ++ Prelude.show valHash
-    putStrLn $ "Script Address: " ++ Prelude.show scrAddress
-    putStrLn "==============================================="
+    P.putStrLn "=========================================="
+    P.putStrLn " LoanContract (Plutus V2) compiled"
+    P.putStrLn "=========================================="
+    P.putStrLn $ "ValidatorHash (short bytes): " P.++ P.show loanValidatorHash
+    P.putStrLn $ "Address: " P.++ P.show loanAddress
+    saveToFile "loanContract.plutus"
+    P.putStrLn "Done."
