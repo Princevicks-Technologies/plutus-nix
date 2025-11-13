@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Health Consent dApp</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --success: #10B981;
+      --danger: #EF4444;
+      --warning: #F59E0B;
+      --dark: #1F2937;
+      --light: #F9FAFB;
+      --gray: #6B7280;
+      --border: #E5E7EB;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+      color: var(--dark);
+      min-height: 100vh;
+      padding: 2rem;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+      overflow: hidden;
+    }
+
+    header {
+      background: var(--primary);
+      color: white;
+      padding: 2.5rem 2rem;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 2.4rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    header p {
+      opacity: 0.9;
+      font-size: 1.1rem;
+    }
+
+    .nav-tabs {
+      display: flex;
+      background: #F3F4F6;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tab {
+      flex: 1;
+      padding: 1rem;
+      text-align: center;
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--gray);
+      transition: all 0.2s;
+    }
+
+    .tab.active {
+      background: white;
+      color: var(--primary);
+      border-bottom: 3px solid var(--primary);
+    }
+
+    .tab:hover:not(.active) {
+      background: #E5E7EB;
+    }
+
+    .content {
+      padding: 2rem;
+    }
+
+    .card {
+      background: var(--light);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      border: 1px solid var(--border);
+    }
+
+    .card h3 {
+      font-size: 1.3rem;
+      margin-bottom: 1rem;
+      color: var(--dark);
+      font-weight: 600;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      color: var(--dark);
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+      font-size: 0.95rem;
+    }
+
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-success { background: var(--success); color: white; }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-warning { background: var(--warning); color: var(--dark); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .status {
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .status.connected { background: #D1FAE5; color: #065F46; border: 1px solid #A7F3D0; }
+    .status.disconnected { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
+    .status.loading { background: #FFF7CD; color: #854D0E; border: 1px solid #FDE68A; }
+    .status.success { background: #D1FAE5; color: #065F46; }
+    .status.danger { background: #FEE2E2; color: #991B1B; }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .info-item {
+      background: white;
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .info-label {
+      font-size: 0.8rem;
+      color: var(--gray);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .info-value {
+      margin-top: 0.25rem;
+      font-weight: 600;
+      word-break: break-all;
+      font-size: 1rem;
+    }
+
+    .hidden { display: none; }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--gray);
+      font-size: 0.9rem;
+      background: #F9FAFB;
+    }
+
+    @media (max-width: 600px) {
+      .nav-tabs { flex-direction: column; }
+      .tab { border-bottom: 1px solid var(--border); }
+      .tab.active { border-bottom: 3px solid var(--primary); }
+      header h1 { font-size: 1.8rem; }
+      .content { padding: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Health Consent dApp</h1>
+      <p>Secure patient consent, access logs, and insurance claims on Cardano</p>
+    </header>
+
+    <div class="nav-tabs">
+      <div class="tab active" data-tab="wallet">Wallet</div>
+      <div class="tab" data-tab="consent">Consent</div>
+      <div class="tab" data-tab="access">Access Log</div>
+      <div class="tab" data-tab="claim">Claims</div>
+    </div>
+
+    <div class="content">
+
+      <!-- Wallet Tab -->
+      <div id="wallet" class="tab-content">
+        <div class="card">
+          <h3>Connect Wallet</h3>
+          <div id="walletStatus" class="status disconnected">Wallet not connected</div>
+          <button id="connectBtn" class="btn btn-primary">Connect Nami Wallet</button>
+          <div id="walletInfo" class="info-grid hidden">
+            <div class="info-item">
+              <div class="info-label">Address</div>
+              <div id="walletAddress" class="info-value">—</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">Balance</div>
+              <div id="walletBalance" class="info-value">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Consent Tab -->
+      <div id="consent" class="tab-content hidden">
+        <div class="card">
+          <h3>Mint Consent</h3>
+          <div class="form-group">
+            <label>Provider PKH</label>
+            <input type="text" id="providerPkh" placeholder="pubKeyHash..." />
+          </div>
+          <div class="form-group">
+            <label>Scopes (comma-separated)</label>
+            <input type="text" id="scopes" placeholder="billing,diagnosis" />
+          </div>
+          <div class="form-group">
+            <label>Expiry (POSIX timestamp)</label>
+            <input type="number" id="expiry" placeholder="e.g., 1893456000000" />
+          </div>
+          <button id="mintBtn" class="btn btn-success">Mint Consent</button>
+          <div id="mintStatus" class="status hidden"></div>
+        </div>
+
+        <div class="card">
+          <h3>Revoke Consent</h3>
+          <div class="form-group">
+            <label>Consent Reference (TxID#idx)</label>
+            <input type="text" id="revokeRef" placeholder="txid#0" />
+          </div>
+          <button id="revokeBtn" class="btn btn-danger">Revoke</button>
+          <div id="revokeStatus" class="status hidden"></div>
+        </div>
+      </div>
+
+      <!-- Access Log Tab -->
+      <div id="access" class="tab-content hidden">
+        <div class="card">
+          <h3>Append Access Log</h3>
+          <div class="form-group">
+            <label>Consent Reference</label>
+            <input type="text" id="logConsentRef" placeholder="txid#0" />
+          </div>
+          <div class="form-group">
+            <label>Data Hash</label>
+            <input type="text" id="dataHash" placeholder="sha256..." />
+          </div>
+          <button id="logBtn" class="btn btn-primary">Log Access</button>
+          <div id="logStatus" class="status hidden"></div>
+        </div>
+      </div>
+
+      <!-- Claims Tab -->
+      <div id="claim" class="tab-content hidden">
+        <div class="card">
+          <h3>Submit Claim</h3>
+          <div class="form-group">
+            <label>Policy ID</label>
+            <input type="text" id="policyId" placeholder="policy..." />
+          </div>
+          <div class="form-group">
+            <label>Amount (lovelace)</label>
+            <input type="number" id="claimAmount" placeholder="10000000" />
+          </div>
+          <div class="form-group">
+            <label>Evidence Hash</label>
+            <input type="text" id="evidenceHash" placeholder="sha256..." />
+          </div>
+          <button id="submitClaimBtn" class="btn btn-success">Submit Claim</button>
+          <div id="submitClaimStatus" class="status hidden"></div>
+        </div>
+
+        <div class="card">
+          <h3>Manage Claim</h3>
+          <div class="form-group">
+            <label>Claim Reference (TxID#idx)</label>
+            <input type="text" id="claimRef" placeholder="txid#0" />
+          </div>
+          <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+            <button id="approveBtn" class="btn btn-success">Approve</button>
+            <button id="rejectBtn" class="btn btn-danger">Reject</button>
+            <button id="settleBtn" class="btn btn-primary">Settle</button>
+          </div>
+          <div id="claimManageStatus" class="status hidden"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <footer>
+      <p>Cardano Testnet • Health Consent dApp • <strong>Live</strong></p>
+    </footer>
+  </div>
+
+  <!-- CONFIG -->
+  <script>
+    const CONFIG = {
+      BLOCKFROST_API_KEY: "testnetYOURPROJECTID", // Replace
+      SCRIPT_ADDRESS: "addr_test1qq...", // Replace with your script address
+    };
+  </script>
+
+  <!-- Lucid SDK -->
+  <script src="https://unpkg.com/lucid-cardano@0.9.3/web/lucid-cardano.js"></script>
+
+  <script>
+    const lucid = await Lucid.new(
+      new Blockfrost("https://cardano-testnet.blockfrost.io/api/v0", CONFIG.BLOCKFROST_API_KEY),
+      "Testnet"
+    );
+
+    let wallet = null;
+
+    // DOM Elements
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+    const connectBtn = document.getElementById('connectBtn');
+    const walletStatus = document.getElementById('walletStatus');
+    const walletInfo = document.getElementById('walletInfo');
+    const walletAddress = document.getElementById('walletAddress');
+    const walletBalance = document.getElementById('walletBalance');
+
+    // Consent
+    const mintBtn = document.getElementById('mintBtn');
+    const mintStatus = document.getElementById('mintStatus');
+    const revokeBtn = document.getElementById('revokeBtn');
+    const revokeStatus = document.getElementById('revokeStatus');
+
+    // Access Log
+    const logBtn = document.getElementById('logBtn');
+    const logStatus = document.getElementById('logStatus');
+
+    // Claims
+    const submitClaimBtn = document.getElementById('submitClaimBtn');
+    const submitClaimStatus = document.getElementById('submitClaimStatus');
+    const approveBtn = document.getElementById('approveBtn');
+    const rejectBtn = document.getElementById('rejectBtn');
+    const settleBtn = document.getElementById('settleBtn');
+    const claimManageStatus = document.getElementById('claimManageStatus');
+
+    // Tab Switching
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tabContents.forEach(c => c.classList.add('hidden'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab).classList.remove('hidden');
+      });
+    });
+
+    // Connect Wallet
+    connectBtn.onclick = async () => {
+      try {
+        if (!window.cardano?.nami) {
+          alert("Install Nami Wallet: https://namiwallet.io");
+          return;
+        }
+        wallet = await window.cardano.nami.enable();
+        lucid.selectWallet(wallet);
+
+        const addr = await lucid.wallet.address();
+        const utxos = await lucid.wallet.getUtxos();
+        const balance = utxos.reduce((a, b) => a + b.value.lovelace, 0) / 1e6;
+
+        walletAddress.textContent = addr.slice(0, 12) + "..." + addr.slice(-6);
+        walletBalance.textContent = balance.toFixed(2) + " ADA";
+
+        walletStatus.textContent = "Connected";
+        walletStatus.className = "status connected";
+        walletInfo.classList.remove("hidden");
+        connectBtn.textContent = "Connected";
+        connectBtn.disabled = true;
+      } catch (err) {
+        alert("Connection failed: " + err.message);
+      }
+    };
+
+    // Helper: Show status
+    function showStatus(el, msg, type = "success") {
+      el.textContent = msg;
+      el.className = `status ${type}`;
+      el.classList.remove("hidden");
+    }
+
+    // Mint Consent
+    mintBtn.onclick = async () => {
+      try {
+        const provider = document.getElementById('providerPkh').value.trim();
+        const scopes = document.getElementById('scopes').value.split(',').map(s => s.trim());
+        const expiry = parseInt(document.getElementById('expiry').value);
+
+        if (!provider || scopes.length === 0 || !expiry) throw new Error("Fill all fields");
+
+        const datum = {
+          cdPatient: (await lucid.wallet.paymentCredential()).hash,
+          cdProvider: provider,
+          cdScopes: scopes.map(s => Data.to(s)),
+          cdExpiry: expiry
+        };
+
+        const tx = await lucid.newTx()
+          .payToContract(CONFIG.SCRIPT_ADDRESS, { inline: Data.to(datum) }, {})
+          .complete();
+
+        const signed = await tx.sign().complete();
+        const txHash = await signed.submit();
+        showStatus(mintStatus, `Minted! Tx: ${txHash.slice(0, 16)}...`);
+      } catch (err) {
+        showStatus(mintStatus, "Failed: " + err.message, "danger");
+      }
+    };
+
+    // Revoke Consent (simplified)
+    revokeBtn.onclick = async () => {
+      showStatus(revokeStatus, "Revoke not fully implemented (needs UTxO lookup)", "warning");
+    };
+
+    // Append Access Log
+    logBtn.onclick = async () => {
+      try {
+        const ref = document.getElementById('logConsentRef').value;
+        const hash = document.getElementById('dataHash').value;
+        const now = Date.now();
+
+        const datum = {
+          alConsentRef: Data.to(ref),
+          alProvider: (await lucid.wallet.paymentCredential()).hash,
+          alHash: Data.to(hash),
+          alTime: now
+        };
+
+        const tx = await lucid.newTx()
+          .payToContract(CONFIG.SCRIPT_ADDRESS, { inline: Data.to(datum) }, {})
+          .complete();
+
+        const signed = await tx.sign().complete();
+        const txHash = await signed.submit();
+        showStatus(logStatus, `Logged! Tx: ${txHash.slice(0, 16)}...`);
+      } catch (err) {
+        showStatus(logStatus, "Failed: " + err.message, "danger");
+      }
+    };
+
+    // Submit Claim
+    submitClaimBtn.onclick = async () => {
+      try {
+        const policy = document.getElementById('policyId').value;
+        const amount = parseInt(document.getElementById('claimAmount').value);
+        const evidence = document.getElementById('evidenceHash').value;
+
+        const datum = {
+          cdPolicyId: Data.to(policy),
+          cdClaimant: (await lucid.wallet.paymentCredential()).hash,
+          cdAmount: amount,
+          cdEvidence: Data.to(evidence),
+          cdState: 0 // Pending
+        };
+
+        const tx = await lucid.newTx()
+          .payToContract(CONFIG.SCRIPT_ADDRESS, { inline: Data.to(datum) }, {})
+          .complete();
+
+        const signed = await tx.sign().complete();
+        const txHash = await signed.submit();
+        showStatus(submitClaimStatus, `Submitted! Tx: ${txHash.slice(0, 16)}...`);
+      } catch (err) {
+        showStatus(submitClaimStatus, "Failed: " + err.message, "danger");
+      }
+    };
+
+    // Approve / Reject / Settle (simplified)
+    [approveBtn, rejectBtn, settleBtn].forEach(btn => {
+      btn.onclick = () => {
+        showStatus(claimManageStatus, `${btn.textContent} not implemented (needs UTxO + datum update)`, "warning");
+      };
+    });
+  </script>
+</body>
+</html>

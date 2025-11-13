@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Attendance Tranching</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #6C5CE7;
+      --success: #00B894;
+      --warning: #FDCB6E;
+      --danger: #E84393;
+      --dark: #2D3436;
+      --light: #F8F9FA;
+      --gray: #636E72;
+      --border: #E9ECEF;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #071557 0%, #150524 100%);
+      color: var(--dark);
+      min-height: 100vh;
+      padding: 2rem;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    header {
+      background: var(--primary);
+      color: white;
+      padding: 2.5rem 2rem;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    header p {
+      opacity: 0.9;
+      font-size: 1.1rem;
+    }
+
+    .content {
+      padding: 2rem;
+    }
+
+    .card {
+      background: var(--light);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      border: 1px solid var(--border);
+    }
+
+    .card h3 {
+      font-size: 1.3rem;
+      margin-bottom: 1rem;
+      color: var(--dark);
+      font-weight: 600;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+      font-size: 0.95rem;
+    }
+
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-success { background: var(--success); color: white; }
+    .btn-warning { background: var(--warning); color: var(--dark); }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .status {
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .status.connected { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .status.disconnected { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .status.loading { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+    .status.success { background: #d4edda; color: #155724; }
+    .status.danger { background: #f8d7da; color: #721c24; }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .info-item {
+      background: white;
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .info-label {
+      font-size: 0.8rem;
+      color: var(--gray);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .info-value {
+      margin-top: 0.25rem;
+      font-weight: 600;
+      word-break: break-all;
+      font-size: 1rem;
+    }
+
+    .actions {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-top: 1.5rem;
+    }
+
+    .hidden { display: none; }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--gray);
+      font-size: 0.9rem;
+      background: #f8f9fa;
+    }
+
+    @media (max-width: 600px) {
+      .actions { flex-direction: column; }
+      header h1 { font-size: 1.8rem; }
+      .content { padding: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Attendance Tranching</h1>
+      <p>Mark daily attendance & claim rewards after 5 days</p>
+    </header>
+
+    <div class="content">
+      <!-- Wallet -->
+      <div class="card">
+        <h3>Wallet</h3>
+        <div id="walletStatus" class="status disconnected">Wallet not connected</div>
+        <button id="connectBtn" class="btn btn-primary">Connect Nami Wallet</button>
+        <div id="walletInfo" class="info-grid hidden">
+          <div class="info-item">
+            <div class="info-label">Address</div>
+            <div id="walletAddress" class="info-value">—</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Balance</div>
+            <div id="walletBalance" class="info-value">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contract State -->
+      <div class="card">
+        <h3>Contract State</h3>
+        <div id="contractStatus" class="status loading">Loading...</div>
+        <div id="contractInfo" class="info-grid hidden">
+          <div class="info-item">
+            <div class="info-label">User</div>
+            <div id="datumUser" class="info-value">—</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Days Attended</div>
+            <div id="datumDays" class="info-value">—</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Tranche Level</div>
+            <div id="datumTranche" class="info-value">—</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Reward</div>
+            <div id="datumReward" class="info-value">—</div>
+          </div>
+        </div>
+        <button id="refreshBtn" class="btn btn-warning hidden">Refresh</button>
+      </div>
+
+      <!-- Actions -->
+      <div class="card">
+        <h3>Actions</h3>
+        <div class="actions">
+          <button id="markBtn" class="btn btn-success hidden">Mark Attendance (Oracle)</button>
+          <button id="claimBtn" class="btn btn-primary hidden">Claim Tranche</button>
+        </div>
+        <div id="actionStatus" class="status hidden"></div>
+      </div>
+    </div>
+
+    <footer>
+      <p>Cardano Testnet • Attendance Tranching • <strong>Live dApp</strong></p>
+    </footer>
+  </div>
+
+  <!-- CONFIG: UPDATE THESE -->
+  <script>
+    const CONFIG = {
+      BLOCKFROST_API_KEY: "testnetYOURPROJECTID", // Get from https://blockfrost.io
+      SCRIPT_ADDRESS: "addr_test1qq...", // Your deployed script address
+      ORACLE_PKH: "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+    };
+  </script>
+
+  <!-- Lucid SDK -->
+  <script src="https://unpkg.com/lucid-cardano@0.9.3/web/lucid-cardano.js"></script>
+
+  <script>
+    // Initialize Lucid
+    const lucid = await Lucid.new(
+      new Blockfrost("https://cardano-testnet.blockfrost.io/api/v0", CONFIG.BLOCKFROST_API_KEY),
+      "Testnet"
+    );
+
+    let wallet = null;
+    let utxoAtScript = null;
+
+    // DOM
+    const connectBtn = document.getElementById("connectBtn");
+    const walletStatus = document.getElementById("walletStatus");
+    const walletInfo = document.getElementById("walletInfo");
+    const walletAddress = document.getElementById("walletAddress");
+    const walletBalance = document.getElementById("walletBalance");
+
+    const contractStatus = document.getElementById("contractStatus");
+    const contractInfo = document.getElementById("contractInfo");
+    const datumUser = document.getElementById("datumUser");
+    const datumDays = document.getElementById("datumDays");
+    const datumTranche = document.getElementById("datumTranche");
+    const datumReward = document.getElementById("datumReward");
+    const refreshBtn = document.getElementById("refreshBtn");
+
+    const markBtn = document.getElementById("markBtn");
+    const claimBtn = document.getElementById("claimBtn");
+    const actionStatus = document.getElementById("actionStatus");
+
+    // Connect Wallet
+    connectBtn.onclick = async () => {
+      try {
+        if (!window.cardano?.nami) {
+          alert("Nami Wallet not detected. Install from https://namiwallet.io");
+          return;
+        }
+        wallet = await window.cardano.nami.enable();
+        lucid.selectWallet(wallet);
+
+        const addr = await lucid.wallet.address();
+        const utxos = await lucid.wallet.getUtxos();
+        const balance = utxos.reduce((a, b) => a + b.value.lovelace, 0) / 1e6;
+
+        walletAddress.textContent = addr.slice(0, 12) + "..." + addr.slice(-6);
+        walletBalance.textContent = balance.toFixed(2) + " ADA";
+
+        walletStatus.textContent = "Connected";
+        walletStatus.className = "status connected";
+        walletInfo.classList.remove("hidden");
+        connectBtn.textContent = "Connected";
+        connectBtn.disabled = true;
+
+        loadContractState();
+        setInterval(loadContractState, 20000);
+      } catch (err) {
+        alert("Wallet connection failed: " + err.message);
+      }
+    };
+
+    // Load Contract State
+    async function loadContractState() {
+      try {
+        contractStatus.textContent = "Fetching UTxO...";
+        const utxos = await lucid.utxosAt(CONFIG.SCRIPT_ADDRESS);
+        utxoAtScript = utxos.find(u => u.datum);
+
+        if (!utxoAtScript) {
+          contractStatus.textContent = "No active session";
+          contractStatus.className = "status disconnected";
+          hideActions();
+          return;
+        }
+
+        const datum = lucid.fromPlutusData(utxoAtScript.datum);
+        datumUser.textContent = datum.userAddress.slice(0, 12) + "...";
+        datumDays.textContent = datum.totalDays;
+        datumTranche.textContent = datum.trancheLevel;
+        datumReward.textContent = (datum.rewardAmount / 1e6).toFixed(2) + " ADA";
+
+        contractInfo.classList.remove("hidden");
+        refreshBtn.classList.remove("hidden");
+        contractStatus.textContent = "Active";
+        contractStatus.className = "status connected";
+
+        showActions(datum);
+      } catch (err) {
+        contractStatus.textContent = "Error: " + err.message;
+        contractStatus.className = "status danger";
+      }
+    }
+
+    function showActions(datum) {
+      const pkh = lucid.wallet.paymentCredential()?.hash;
+      const isOracle = pkh === CONFIG.ORACLE_PKH;
+      const isUser = pkh === datum.userAddress;
+      const canClaim = isUser && datum.totalDays >= 5;
+
+      markBtn.classList.toggle("hidden", !isOracle);
+      claimBtn.classList.toggle("hidden", !canClaim);
+      claimBtn.disabled = !canClaim;
+    }
+
+    function hideActions() {
+      markBtn.classList.add("hidden");
+      claimBtn.classList.add("hidden");
+    }
+
+    refreshBtn.onclick = loadContractState;
+
+    // Mark Attendance
+    markBtn.onclick = async () => {
+      try {
+        actionStatus.classList.add("hidden");
+        const newDatum = {
+          userAddress: utxoAtScript.datum.userAddress,
+          totalDays: utxoAtScript.datum.totalDays + 1,
+          trancheLevel: utxoAtScript.datum.trancheLevel,
+          rewardAmount: utxoAtScript.datum.rewardAmount
+        };
+
+        const tx = await lucid.newTx()
+          .collectFrom([utxoAtScript], Data.to({ constructor: 0, fields: [] })) // MarkAttendance
+          .payToContract(CONFIG.SCRIPT_ADDRESS, { inline: Data.to(newDatum) }, utxoAtScript.assets)
+          .complete();
+
+        const signed = await tx.sign().complete();
+        const txHash = await signed.submit();
+
+        actionStatus.textContent = `Marked! Tx: ${txHash.slice(0, 16)}...`;
+        actionStatus.className = "status success";
+        actionStatus.classList.remove("hidden");
+        setTimeout(loadContractState, 5000);
+      } catch (err) {
+        actionStatus.textContent = "Failed: " + err.message;
+        actionStatus.className = "status danger";
+        actionStatus.classList.remove("hidden");
+      }
+    };
+
+    // Claim Tranche
+    claimBtn.onclick = async () => {
+      try {
+        actionStatus.classList.add("hidden");
+        const tx = await lucid.newTx()
+          .collectFrom([utxoAtScript], Data.to({ constructor: 1, fields: [] })) // ClaimTranche
+          .payToAddress(await lucid.wallet.address(), { lovelace: utxoAtScript.datum.rewardAmount })
+          .complete();
+
+        const signed = await tx.sign().complete();
+        const txHash = await signed.submit();
+
+        actionStatus.textContent = `Claimed! Tx: ${txHash.slice(0, 16)}...`;
+        actionStatus.className = "status success";
+        actionStatus.classList.remove("hidden");
+        setTimeout(loadContractState, 5000);
+      } catch (err) {
+        actionStatus.textContent = "Failed: " + err.message;
+        actionStatus.className = "status danger";
+        actionStatus.classList.remove("hidden");
+      }
+    };
+  </script>
+</body>
+</html>
