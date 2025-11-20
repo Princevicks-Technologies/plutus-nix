@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Loan Contract — Frontend</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--muted:#94a3b8;--accent:#7c3aed;--glass:rgba(255,255,255,0.04)}
+    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial; background:linear-gradient(180deg,#071122 0%, #071730 60%);color:#e6eef8}
+    .wrap{max-width:980px;margin:32px auto;padding:24px}
+    header{display:flex;align-items:center;gap:16px}
+    .logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#4f46e5);display:flex;align-items:center;justify-content:center;font-weight:700;color:white}
+    h1{margin:0;font-size:20px}
+    p.lead{color:var(--muted);margin:6px 0 18px}
+
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:20px}
+    .card{background:var(--card);border-radius:12px;padding:18px;box-shadow:0 6px 24px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.02)}
+
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input[type=text], input[type=number], input[type=datetime-local], textarea, select{width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:var(--glass);color:inherit;font-size:14px}
+    .row{display:flex;gap:12px}
+    .row > *{flex:1}
+    .muted{color:var(--muted);font-size:13px}
+
+    .actions{display:flex;gap:10px;margin-top:12px}
+    .btn{padding:10px 14px;border-radius:10px;border:0;font-weight:600;cursor:pointer}
+    .btn.primary{background:var(--accent);color:white}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+
+    pre{background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);padding:12px;border-radius:8px;overflow:auto;font-size:13px}
+
+    footer{margin-top:18px;color:var(--muted);font-size:13px}
+
+    @media (max-width:900px){.grid{grid-template-columns:1fr;}.card{padding:14px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">LC</div>
+      <div>
+        <h1>LoanContract Frontend — Plutus V2 (Demo)</h1>
+        <p class="lead">Create loan datums and redeemers for local testing. This static frontend does <strong>not</strong> submit transactions — use your Cardano tooling (cardano-cli/cardano-serialization) to build and sign TXs.</p>
+      </div>
+    </header>
+
+    <div class="grid" style="margin-top:18px">
+      <!-- left: form -->
+      <div>
+        <div class="card">
+          <h3 style="margin-top:0">Loan Parameters (Datum)</h3>
+
+          <label for="lender">Lender PubKeyHash</label>
+          <input id="lender" type="text" placeholder="e.g. e3f9..." value="" />
+
+          <label for="borrower" style="margin-top:12px">Borrower PubKeyHash</label>
+          <input id="borrower" type="text" placeholder="e.g. a1b2..." value="" />
+
+          <div class="row" style="margin-top:12px">
+            <div>
+              <label for="principal">Principal (lovelace)</label>
+              <input id="principal" type="number" min="0" step="1" value="1000000" />
+            </div>
+            <div>
+              <label for="interest">Interest (lovelace)</label>
+              <input id="interest" type="number" min="0" step="1" value="50000" />
+            </div>
+          </div>
+
+          <label for="deadline" style="margin-top:12px">Deadline (POSIX datetime)</label>
+          <input id="deadline" type="datetime-local" />
+          <div class="muted" style="margin-top:8px">Deadline will be converted to POSIX time (ms since UNIX epoch) when exporting.</div>
+
+          <div style="margin-top:18px;display:flex;gap:8px;align-items:center">
+            <button class="btn primary" id="exportDatum">Export Datum (.json)</button>
+            <button class="btn ghost" id="copyDatum">Copy JSON</button>
+            <div style="flex:1"></div>
+          </div>
+
+          <hr style="border:none;border-top:1px solid rgba(255,255,255,0.02);margin:16px 0" />
+
+          <h3 style="margin-top:0">Redeemer</h3>
+          <label for="action">Action</label>
+          <select id="action">
+            <option value="Repay">Repay</option>
+            <option value="Claim">Claim</option>
+          </select>
+
+          <div class="actions">
+            <button class="btn primary" id="exportRedeemer">Export Redeemer (.json)</button>
+            <button class="btn ghost" id="copyRedeemer">Copy JSON</button>
+          </div>
+
+          <hr style="border:none;border-top:1px solid rgba(255,255,255,0.02);margin:16px 0" />
+
+          <h3 style="margin-top:0">Helpers</h3>
+          <p class="muted">You can paste the exported datum/redeemer JSON into your off-chain scripts or use cardano-node tooling to create transactions that spend the script UTXO.</p>
+
+        </div>
+
+        <div style="height:18px"></div>
+
+        <div class="card">
+          <h3 style="margin-top:0">Quick Demo: Example Validator Info</h3>
+          <label>Validator Hash (short bytes)</label>
+          <input id="validatorHash" type="text" value="00000000000000000000000000000000000000000000000000000000" />
+          <label style="margin-top:12px">Address</label>
+          <input id="validatorAddress" type="text" value="script1..." />
+          <div class="muted" style="margin-top:8px">These are placeholders — replace with your compiled script info.</div>
+        </div>
+
+      </div>
+
+      <!-- right: preview / output -->
+      <div>
+        <div class="card">
+          <h3 style="margin-top:0">Preview / Output</h3>
+          <label>Datum JSON</label>
+          <pre id="datumPreview">{ }
+</pre>
+
+          <label style="margin-top:12px">Redeemer JSON</label>
+          <pre id="redeemerPreview">{ }
+</pre>
+
+          <div style="margin-top:12px;display:flex;gap:8px">
+            <button class="btn primary" id="downloadAll">Download All (.zip)</button>
+            <button class="btn ghost" id="clear">Clear</button>
+          </div>
+
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="card">
+          <h3 style="margin-top:0">Notes & Next Steps</h3>
+          <ul style="color:var(--muted);padding-left:18px">
+            <li>Create a transaction that spends the script UTXO and attach the exported datum/redeemer.</li>
+            <li>Use cardano-cli / cardano-serialization-lib for proper CBOR/PlutusData encoding.</li>
+            <li>This frontend is offline and safe for preparing test payloads only.</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <footer>
+      Built for demo/testing • This page does not sign or submit transactions. Use your wallet/tooling to assemble & sign TXs.
+    </footer>
+  </div>
+
+  <script>
+    // Utilities
+    const el = id => document.getElementById(id)
+
+    function toPosixFromDateString(dtLocal) {
+      if (!dtLocal) return null
+      // datetime-local gives local time -> convert to ms since epoch
+      const d = new Date(dtLocal)
+      return d.getTime()
+    }
+
+    function buildDatum() {
+      const lender = el('lender').value.trim()
+      const borrower = el('borrower').value.trim()
+      const principal = parseInt(el('principal').value || '0', 10)
+      const interest = parseInt(el('interest').value || '0', 10)
+      const deadlineLocal = el('deadline').value
+      const deadline = toPosixFromDateString(deadlineLocal)
+
+      const datum = {
+        constructor: 0,
+        fields: [
+          {bytes: lender},
+          principal,
+          interest,
+          deadline === null ? null : deadline
+        ]
+      }
+
+      // Also provide a friendly object for reading
+      const friendly = {
+        lpLender: lender,
+        lpBorrower: borrower,
+        lpPrincipal: principal,
+        lpInterest: interest,
+        lpDeadlinePosixMs: deadline
+      }
+
+      return {datumCborLike: datum, friendly}
+    }
+
+    function buildRedeemer() {
+      const action = el('action').value
+      const idx = action === 'Repay' ? 0 : 1
+      const redeemer = { constructor: idx, fields: [] }
+      return {redeemerCborLike: redeemer, friendly: {action}}
+    }
+
+    function updatePreviews() {
+      const d = buildDatum()
+      const r = buildRedeemer()
+      el('datumPreview').textContent = JSON.stringify(d.friendly, null, 2)
+      el('redeemerPreview').textContent = JSON.stringify(r.friendly, null, 2)
+      // also show the CBOR-like structure
+      // (Note: real PlutusData serialization requires cardano libs)
+    }
+
+    // Export helpers
+    function downloadJSON(filename, obj) {
+      const blob = new Blob([JSON.stringify(obj, null, 2)], {type: 'application/json'})
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove()
+      URL.revokeObjectURL(url)
+    }
+
+    el('exportDatum').addEventListener('click', () => {
+      const d = buildDatum()
+      const payload = { type: 'datum', friendly: d.friendly, cborLike: d.datumCborLike }
+      downloadJSON('loan_datum.json', payload)
+    })
+
+    el('copyDatum').addEventListener('click', async () => {
+      const d = buildDatum()
+      await navigator.clipboard.writeText(JSON.stringify(d.friendly, null, 2))
+      alert('Datum JSON copied to clipboard')
+    })
+
+    el('exportRedeemer').addEventListener('click', () => {
+      const r = buildRedeemer()
+      const payload = { type: 'redeemer', friendly: r.friendly, cborLike: r.redeemerCborLike }
+      downloadJSON('loan_redeemer.json', payload)
+    })
+
+    el('copyRedeemer').addEventListener('click', async () => {
+      const r = buildRedeemer()
+      await navigator.clipboard.writeText(JSON.stringify(r.friendly, null, 2))
+      alert('Redeemer JSON copied to clipboard')
+    })
+
+    el('downloadAll').addEventListener('click', () => {
+      // simple zip-less download: create a single file that contains both
+      const d = buildDatum()
+      const r = buildRedeemer()
+      const combined = {datum: d.friendly, redeemer: r.friendly}
+      downloadJSON('loan_payload.json', combined)
+    })
+
+    el('clear').addEventListener('click', () => {
+      el('lender').value = ''
+      el('borrower').value = ''
+      el('principal').value = '1000000'
+      el('interest').value = '50000'
+      el('deadline').value = ''
+      el('datumPreview').textContent = '{ }'
+      el('redeemerPreview').textContent = '{ }'
+    })
+
+    // live update
+    ;['lender','borrower','principal','interest','deadline','action'].forEach(id => {
+      el(id).addEventListener('input', updatePreviews)
+    })
+
+    // initial preview
+    updatePreviews()
+  </script>
+</body>
+</html>
